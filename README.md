@@ -327,6 +327,12 @@ auth service returns an active-session conflict, the launcher retries with
 `QJ_REPLACE_EXISTING_SESSION=0` if you do not want a CLI run to replace an
 existing web session.
 
+Hosted Backtester runs require the account entitlement `product:backtester`
+and a restricted API key carrying both `product:backtester` and
+`feature:backtester`. If either grant is missing, the launcher stops before
+execution and points to [Account and API keys](https://users.quantjourney.cloud)
+without printing a Python traceback.
+
 ## Strategy Catalog
 
 The repository ships **50 runnable example strategies** — 25 weight-based, 20

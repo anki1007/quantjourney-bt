@@ -122,3 +122,11 @@ The strategy configuration was rejected before market data was prepared. Fix
 the field and suggested correction shown in the yellow panel, then run the same
 command again. No trades or report were created. Set
 `$env:QJ_LOG_LEVEL = "DEBUG"` only when technical request details are needed.
+
+### `Backtester access required`
+
+Hosted runs need an active Backtester product and a restricted API key with
+both `product:backtester` and `feature:backtester`. Sign in at
+https://users.quantjourney.cloud, activate Backtester for the account, create a
+new restricted key, and replace `QJ_API_KEY` in `.env`. The launcher stops
+before execution, so no trades or report are created.

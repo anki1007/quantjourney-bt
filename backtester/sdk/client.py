@@ -152,6 +152,57 @@ class APIError(Exception):
         return " ".join(parts)
 
 
+class BacktesterAccessError(APIError):
+    """Actionable denial for a key without the Backtester product grant."""
+
+    required_scopes = ("product:backtester", "feature:backtester")
+    endpoint = "/bt/prepare"
+    account_url = "https://users.quantjourney.cloud"
+    product_url = "https://backtester.quantjourney.cloud"
+
+    def __init__(
+        self,
+        message: str = "This API key does not have Backtester access.",
+        *,
+        request_id: str | None = None,
+        error_code: str | None = None,
+        status_code: int = 403,
+    ):
+        super().__init__(message, request_id=request_id, error_code=error_code)
+        self.status_code = status_code
+
+    @classmethod
+    def from_api_error(cls, error: Exception) -> "BacktesterAccessError | None":
+        body = getattr(error, "response_body", None)
+        body = body if isinstance(body, dict) else {}
+        status = getattr(error, "status_code", None) or body.get("status")
+        detail = str(body.get("detail") or "")
+        if status != 403 or not all(scope in detail for scope in cls.required_scopes):
+            return None
+
+        error_code = (
+            getattr(error, "error_code", None) or body.get("error_code") or body.get("code")
+        )
+        request_id = getattr(error, "request_id", None) or body.get("request_id")
+        return cls(
+            request_id=str(request_id) if request_id else None,
+            error_code=str(error_code) if error_code else None,
+            status_code=int(status),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "endpoint": self.endpoint,
+            "status": self.status_code,
+            "error_code": self.error_code,
+            "request_id": self.request_id,
+            "message": str(self.args[0]),
+            "required_scopes": list(self.required_scopes),
+            "account_url": self.account_url,
+            "product_url": self.product_url,
+        }
+
+
 class PrepareValidationError(APIError):
     """Actionable validation failure returned by ``POST /bt/prepare``."""
 
@@ -1048,6 +1099,7 @@ __all__ = [
     "APIClient",
     "AsyncAPIClient",
     "APIError",
+    "BacktesterAccessError",
     "PrepareValidationError",
     "APIResponse",
     "ConnectorEndpoint",

@@ -1,5 +1,16 @@
 # QuantJourney Backtester Changelog
 
+## 0.12.5 - 2026-09-17
+
+### Added
+- Added a typed `BacktesterAccessError` for the exact hosted-product denial,
+  preserving the request ID and stable API error code for support.
+
+### Changed
+- Repository launchers now render a concise `Backtester access required`
+  panel with the exact `product:backtester` and `feature:backtester` grants and
+  the account URL, without a duplicate error or Python traceback.
+
 ## 0.12.4 - 2026-07-21
 
 ### Changed

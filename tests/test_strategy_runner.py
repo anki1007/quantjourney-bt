@@ -11,7 +11,7 @@ from io import StringIO
 from rich.console import Console
 
 from backtester.cli import strategy_runner
-from backtester.sdk.client import PrepareValidationError
+from backtester.sdk.client import BacktesterAccessError, PrepareValidationError
 
 
 def _prepare_error() -> PrepareValidationError:
@@ -58,4 +58,36 @@ def test_process_boundary_catches_prepare_error(monkeypatch, capsys) -> None:
     assert strategy_runner.main(["broken_strategy.py"]) == 2
     output = capsys.readouterr().err
     assert "Configuration needs attention" in output
+    assert "Traceback" not in output
+
+
+def test_renderer_shows_product_access_instructions_without_traceback() -> None:
+    buffer = StringIO()
+    console = Console(file=buffer, width=100, color_system=None, force_terminal=False)
+    error = BacktesterAccessError(
+        request_id="req-access-test",
+        error_code="ERR_AUTH_403",
+    )
+
+    strategy_runner.render_backtester_access_error(error, console=console)
+
+    output = buffer.getvalue()
+    assert "Backtester access required" in output
+    assert "product:backtester" in output
+    assert "feature:backtester" in output
+    assert "https://users.quantjourney.cloud" in output
+    assert "No trades were executed and no report was created." in output
+    assert "Request req-access-test" in output
+    assert "Traceback" not in output
+
+
+def test_process_boundary_catches_product_access_error(monkeypatch, capsys) -> None:
+    def raise_access_error(*args, **kwargs):
+        raise BacktesterAccessError(request_id="req-access-test")
+
+    monkeypatch.setattr(strategy_runner.runpy, "run_path", raise_access_error)
+
+    assert strategy_runner.main(["restricted_strategy.py"]) == 2
+    output = capsys.readouterr().err
+    assert "Backtester access required" in output
     assert "Traceback" not in output

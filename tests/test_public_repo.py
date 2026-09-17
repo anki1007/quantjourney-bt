@@ -268,6 +268,57 @@ def test_sdk_prepare_validation_error_is_actionable() -> None:
     assert "req-prepare" in str(raised.value)
 
 
+def test_sdk_backtester_product_denial_is_actionable_and_exact() -> None:
+    from types import SimpleNamespace
+
+    from backtester.mixins.sdk_client import SDKClientMixin
+    from backtester.sdk.client import APIError, BacktesterAccessError
+
+    class DummyClient:
+        async def _request(self, path: str, payload: dict) -> dict:
+            error = APIError("HTTP 403", request_id="req-access", error_code="ERR_AUTH_403")
+            error.status_code = 403
+            error.response_body = {
+                "status": 403,
+                "detail": (
+                    "You don't have access to this service. Required exact access: "
+                    "product:backtester and feature:backtester"
+                ),
+                "request_id": "req-access",
+                "error_code": "ERR_AUTH_403",
+            }
+            raise error
+
+    class DummyBacktester(SDKClientMixin):
+        async def _get_sdk_client(self):
+            return DummyClient()
+
+    dummy = DummyBacktester()
+    dummy._source = "yfinance"
+    dummy._granularity = "1d"
+    dummy.backtest_period = SimpleNamespace(start="2026-01-01", end="2026-06-01")
+    dummy.instruments = ["AAPL"]
+    dummy._persist = True
+    dummy._dedupe = True
+    dummy._force_refresh = False
+
+    with pytest.raises(BacktesterAccessError) as raised:
+        asyncio.run(dummy._fetch_market_data())
+
+    assert raised.value.required_scopes == ("product:backtester", "feature:backtester")
+    assert raised.value.request_id == "req-access"
+
+
+def test_sdk_unrelated_forbidden_is_not_relabelled_as_product_denial() -> None:
+    from backtester.sdk.client import APIError, BacktesterAccessError
+
+    error = APIError("HTTP 403")
+    error.status_code = 403
+    error.response_body = {"detail": "Tenant access denied."}
+
+    assert BacktesterAccessError.from_api_error(error) is None
+
+
 def test_sample_data_payload_loads_without_credentials(monkeypatch) -> None:
     from types import SimpleNamespace
 

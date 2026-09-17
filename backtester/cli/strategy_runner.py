@@ -16,7 +16,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from backtester.sdk.client import PrepareValidationError
+from backtester.sdk.client import BacktesterAccessError, PrepareValidationError
 
 _FIELD_LABELS = {
     "instruments": "Instruments",
@@ -104,6 +104,61 @@ def render_prepare_validation_error(
         )
 
 
+def render_backtester_access_error(
+    error: BacktesterAccessError,
+    *,
+    console: Console | None = None,
+) -> None:
+    """Render the product entitlement denial without a Python traceback."""
+
+    output = console or Console(
+        stderr=True,
+        highlight=False,
+        force_terminal=True if _enabled("QJ_FORCE_COLOR") else None,
+    )
+    body = Text()
+    body.append("This API key cannot run hosted Backtester jobs.\n")
+    body.append("Activate Backtester for the account, then create a restricted key with:\n\n")
+    for scope in error.required_scopes:
+        body.append(f"  {scope}\n", style="bold yellow")
+    body.append(f"\nAccount and API keys: {error.account_url}")
+    body.append(f"\nBacktester: {error.product_url}")
+    body.append("\n\nNo trades were executed and no report was created.", style="dim")
+    trace = " · ".join(
+        value
+        for value in (
+            f"Request {error.request_id}" if error.request_id else "",
+            f"Error {error.error_code}" if error.error_code else "",
+        )
+        if value
+    )
+    if trace:
+        body.append(f"\n{trace}", style="dim")
+
+    output.print(
+        Panel(
+            body,
+            title=Text(" Backtester access required ", style="bold yellow"),
+            border_style="yellow",
+            expand=False,
+            padding=(1, 2),
+        )
+    )
+
+    if os.getenv("QJ_LOG_LEVEL", "").strip().upper() == "DEBUG":
+        output.print(
+            f"[dim]Technical: endpoint={error.endpoint} status={error.status_code} "
+            f"code={error.error_code or '-'} request_id={error.request_id or '-'}[/dim]"
+        )
+
+    if _enabled("QJ_ERROR_TEST_MODE"):
+        print(
+            "QJ_ACCESS_ERROR="
+            + json.dumps(error.to_dict(), ensure_ascii=True, separators=(",", ":")),
+            file=sys.stderr,
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) != 1:
@@ -114,6 +169,9 @@ def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("QJ_FRIENDLY_ERRORS", "1")
     try:
         runpy.run_path(str(strategy_path), run_name="__main__")
+    except BacktesterAccessError as error:
+        render_backtester_access_error(error)
+        return 2
     except PrepareValidationError as error:
         render_prepare_validation_error(error)
         return 2

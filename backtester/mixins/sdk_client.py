@@ -92,7 +92,11 @@ class SDKClientMixin:
         if message:
             cls._raise_quota_limit_error(exc)
 
-        from backtester.sdk.client import PrepareValidationError
+        from backtester.sdk.client import BacktesterAccessError, PrepareValidationError
+
+        access_error = BacktesterAccessError.from_api_error(exc)
+        if access_error is not None:
+            raise access_error from exc
 
         validation_error = PrepareValidationError.from_api_error(exc)
         if validation_error is not None:
